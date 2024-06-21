@@ -30,6 +30,11 @@ impl Terminal {
         Ok(())
     }
 
+    pub fn clear_line()-> Result<(),std::io::Error> {
+        Self::excute_command(Clear(ClearType::CurrentLine))?;
+        Ok(())
+    }
+
     pub fn clear_screen()-> Result<(), std::io::Error> {
         Self::excute_command( Clear(ClearType::All))?;
         Ok(())
