@@ -8,8 +8,8 @@ pub struct View{
 }
 
 impl View {
-    pub fn default()-> View{
-        View { view_buffer: Buffer::default() }
+    pub fn default(text:Option<Vec<String>>)-> View{
+        View { view_buffer: Buffer::default(text) }
     }
     pub fn render(&self) -> Result<(), Error> {
         let Size { height, .. } = Terminal::size()?;

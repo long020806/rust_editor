@@ -1,6 +1,8 @@
 mod terminal;
 mod view;
 mod buffer;
+use std::fs::File;
+use std::io::{BufRead, BufReader};
 use std::{cmp::min, io::Error};
 use view::View;
 use crossterm::event::Event::Key;
@@ -12,12 +14,45 @@ pub struct Editor {
     view:View
 }
 impl Editor {
-    pub fn default() -> Self {
+    pub fn default(text:Option<Vec<String>>) -> Self {
         Self {
             should_quit: false,
             location: Position { x: 0, y: 0 },
-            view:View::default()
+            view:View::default(text)
         }
+    }
+
+    pub fn read() -> Option<Vec<String>> {
+        match std::env::args().skip(1).next() {
+            Some(file_path) => {
+                match File::open(file_path) {
+                    file => {
+                        match file {
+                            Ok(file) => {
+                                let lines = BufReader::new(file).lines();
+                                println!("file_path:{:?}",lines);
+                                let results:Vec<String> = lines.map(|item|{
+                                        let result = match item {
+                                            Ok(item) => {item},
+                                            Err(_) => {"错误信息".to_string()},
+                                        };
+                                        result
+                                    }).collect();
+                                Some(results)
+                            },
+                            Err(_) => {
+                                None
+                            },
+                        }
+                    } 
+                }
+            },
+            None => {
+                None
+            },
+        }
+
+
     }
 
     pub fn run(&mut self) {

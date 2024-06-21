@@ -3,10 +3,19 @@ pub struct Buffer{
 }
 
 impl Buffer{
-    pub fn default() -> Buffer{
-        Buffer{
-            lines:vec!["Hello, World!".to_string()]
-        }
+    pub fn default(text:Option<Vec<String>>) -> Buffer{
+        let buffer = match text {
+            Some(lines) => {
+                Buffer{lines}
+            },
+            None => {
+                Buffer{
+                    lines:vec!["Hello, World!".to_string()]
+                }
+            },
+        };
+        buffer
+
     }
 
     fn save_buffer(self:&mut Self,str:&str)->Result<(),std::io::Error>{
