@@ -13,6 +13,15 @@ pub struct Position {
     pub y: u16,
 }
 
+impl Position {
+    pub fn default()->Position{
+        Position{
+            x:0,
+            y:0
+        }
+    }
+}
+
 pub struct Terminal {}
 
 impl Terminal {
@@ -45,14 +54,10 @@ impl Terminal {
         Ok(())
     }
 
-    pub fn get_cusor() -> Result<Position,std::io::Error> {
-        let (cursor_x,cursor_y) = crossterm::cursor::position()?;
-        Ok(Position{x:cursor_x,y:cursor_y})
-    }
 
     pub fn size() -> Result<Size, std::io::Error> {
         let (size_x,size_y) = crossterm::terminal::size()?;
-        Ok(Size { height: size_y, width: size_x })
+        Ok(Size { height: size_y - 1, width: size_x })
     }
     
     pub fn hide_cursor() -> Result<(), std::io::Error> {

@@ -1,11 +1,9 @@
 mod terminal;
 mod view;
 mod buffer;
-use std::fs::File;
-use std::io::{BufRead, BufReader};
-use std::{cmp::min, io::Error};
+use std::{cmp::min, env, io::Error};
 use view::View;
-use crossterm::event::Event::Key;
+use crossterm::event::Event::{Key,Resize};
 use crossterm::event::{read, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use terminal::{Position, Size, Terminal};
 pub struct Editor {
@@ -14,49 +12,26 @@ pub struct Editor {
     view:View
 }
 impl Editor {
-    pub fn default(text:Option<Vec<String>>) -> Self {
+    pub fn default() -> Self {
         Self {
             should_quit: false,
             location: Position { x: 0, y: 0 },
-            view:View::default(text)
+            view:View::default()
         }
     }
 
-    pub fn read() -> Option<Vec<String>> {
-        match std::env::args().skip(1).next() {
-            Some(file_path) => {
-                match File::open(file_path) {
-                    file => {
-                        match file {
-                            Ok(file) => {
-                                let lines = BufReader::new(file).lines();
-                                println!("file_path:{:?}",lines);
-                                let results:Vec<String> = lines.map(|item|{
-                                        let result = match item {
-                                            Ok(item) => {item},
-                                            Err(_) => {"错误信息".to_string()},
-                                        };
-                                        result
-                                    }).collect();
-                                Some(results)
-                            },
-                            Err(_) => {
-                                None
-                            },
-                        }
-                    } 
-                }
-            },
-            None => {
-                None
-            },
+
+     
+    fn handle_args(&mut self) {
+        let args: Vec<String> = env::args().collect();
+        if let Some(file_name) = args.get(1) {
+            self.view.load(file_name);
         }
-
-
     }
 
     pub fn run(&mut self) {
         Terminal::initialize().unwrap();
+        self.handle_args();
         let result = self.repl();
 
         Terminal::terminate().unwrap();
@@ -70,50 +45,75 @@ impl Editor {
                 break;
             }
             let event = read()?;
-            self.evaluate_event(&event)?;
+            self.evaluate_event(event)?;
         }
         Ok(())
     }
 
-    fn refresh_screen(&self) -> Result<(), std::io::Error> {
+    fn refresh_screen(&mut self) -> Result<(), std::io::Error> {
         Terminal::hide_cursor()?;
+        Terminal::move_cursor_to(Position{x:0,y:0})?;
         if self.should_quit {
             Terminal::clear_screen()?;
             Terminal::print("Goodbye.\r\n")?;
         } else {
             self.view.render()?;
+            self.render_bottom_info()?;
             Terminal::move_cursor_to(Position { x: self.location.x, y:  self.location.y })?;
         }
         Terminal::show_cursor()?;
         Terminal::execute()?;
         Ok(())
     }
+
+    fn render_bottom_info(&self) -> Result<(), std::io::Error>{
+        // 打印x,y,width,height信息
+        let Size{ height,width } = Terminal::size()?;
+        Terminal::move_cursor_to(Position{x:0,y:height + 1})?;
+        Terminal::clear_line()?;
+        Terminal::print(format!("x:{} y:{} width:{} height:{}",self.location.x,self.location.y,width,height).as_str())?;
+        Ok(())
+    }
+
+    fn evaluate_event(&mut self, event: crossterm::event::Event) -> Result<(), std::io::Error> {
+        match event
+        { 
+            Key(KeyEvent {
+                code,
+                modifiers,
+                kind: KeyEventKind::Press,
+                ..
+            }) => {
+                match code {
+                    KeyCode::Char('q') if modifiers == KeyModifiers::CONTROL => {
+                        self.should_quit = true;
+                    }
+                    KeyCode::Up
+                    | KeyCode::Down
+                    | KeyCode::Left
+                    | KeyCode::Right
+                    | KeyCode::PageDown
+                    | KeyCode::PageUp
+                    | KeyCode::End
+                    | KeyCode::Home => {
+                        self.view.set_render(true);
+                        self.move_point(code)?;
+                    }
     
-    fn evaluate_event(&mut self, event: &crossterm::event::Event) -> Result<(), std::io::Error> {
-        if let Key(KeyEvent {
-            code,
-            modifiers,
-            kind: KeyEventKind::Press,
-            ..
-        }) = event
-        {
-            match code {
-                KeyCode::Char('q') if *modifiers == KeyModifiers::CONTROL => {
-                    self.should_quit = true;
-                }
-                KeyCode::Up
-                | KeyCode::Down
-                | KeyCode::Left
-                | KeyCode::Right
-                | KeyCode::PageDown
-                | KeyCode::PageUp
-                | KeyCode::End
-                | KeyCode::Home => {
-                    self.move_point(*code)?;
-                }
-                _ => (),
+                    _ => {
+                    },
+                }     
             }
-        }
+            Resize( width , height) => {
+                self.view.resize(Size{width:width,height:height})
+            } 
+            _=>{
+
+            },
+      
+        };
+
+
         Ok(())
     }
 
