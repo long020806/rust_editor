@@ -24,6 +24,10 @@ impl View {
         }
     }
 
+    pub fn get_buffer_text(&self) -> String{
+        self.view_buffer.lines.join("\n")
+    }
+
     pub fn render(&mut self) {
         if !self.needs_redraw {
             return ;

@@ -1,6 +1,8 @@
 mod terminal;
 mod view;
 mod buffer;
+use std::fs::File;
+use std::io::Write;
 use view::View;
 use crossterm::event::Event::{Key,Resize};
 use crossterm::event::{read, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
@@ -11,6 +13,7 @@ use std::{
     panic::{set_hook, take_hook},
     cmp::min
 };
+use std::time::SystemTime;
 
 enum Direction{
     UP,
@@ -103,6 +106,9 @@ impl Editor {
                     KeyCode::Char('q') if modifiers == KeyModifiers::CONTROL => {
                         self.should_quit = true;
                     }
+                    KeyCode::Char('s') if modifiers == KeyModifiers::CONTROL => {
+                        self.save_file();
+                    }
                     KeyCode::Up
                     | KeyCode::Down
                     | KeyCode::Left
@@ -137,6 +143,19 @@ impl Editor {
       
         };
 
+    }
+
+    fn get_time_stamp() -> String{
+        let now = SystemTime::now();
+        let unix_timestamp = now.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+        return unix_timestamp.to_string();
+    }
+    fn save_file(&self){
+
+        let mut file = File::create(Self::get_time_stamp()).expect("Could not create file");
+        let text = self.view.get_buffer_text();
+        writeln!(file, "{}",text)
+            .expect("Could not write to file");
     }
 
     fn over_screen(x:u16,y:u16,width:u16,height:u16,direction:Direction) -> bool {
