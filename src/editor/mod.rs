@@ -11,6 +11,14 @@ use std::{
     panic::{set_hook, take_hook},
     cmp::min
 };
+
+enum Direction{
+    UP,
+    DOWN,
+    LEFT,
+    RIGHT
+}
+
 pub struct Editor {
     should_quit: bool,
     location: Position,
@@ -78,7 +86,7 @@ impl Editor {
         let Size{ height,width } = Terminal::size().unwrap_or_default();
         let _ = Terminal::move_cursor_to(Position{x:0,y:height + 1});
         let _ = Terminal::clear_line();
-        let _ = Terminal::print(format!("x:{} y:{} width:{} height:{}",self.location.x,self.location.y,width,height).as_str());
+        let _ = Terminal::print(format!("x:{} y:{} offset.x:{} offset.y:{} width:{} height:{}",self.location.x,self.location.y,self.view.offset.x,self.view.offset.y,width,height).as_str());
 
     }
 
@@ -122,20 +130,63 @@ impl Editor {
 
     }
 
+    fn over_screen(x:u16,y:u16,width:u16,height:u16,direction:Direction) -> bool {
+        match direction {
+            Direction::UP => {
+                if y == 0 {
+                    return true;
+                }
+            }
+            Direction::DOWN =>{
+                if y == height - 1 {
+                    return true;
+                }
+            }
+            Direction::LEFT => {
+                if x == 0 {
+                    return true;
+                }
+            }
+            Direction::RIGHT => {
+                if x == width - 1 {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     fn move_point(&mut self, key_code: KeyCode)  {
         let Position { mut x, mut y } = self.location;
         let Size { height, width } = Terminal::size().unwrap_or_default();
         match key_code {
             KeyCode::Up => {
+                let over = Self::over_screen(x,y,width,height,Direction::UP);
+                if over {
+                    self.view.offset.y = self.view.offset.y.saturating_sub(1);
+                }
                 y = y.saturating_sub(1);
+                
             }
             KeyCode::Down => {
+                let over = Self::over_screen(x,y,width,height,Direction::DOWN);
+                if over {
+                    self.view.offset.y = self.view.offset.y.saturating_add(1);
+                }
                 y = min(height.saturating_sub(1), y.saturating_add(1));
             }
             KeyCode::Left => {
+                let over = Self::over_screen(x,y,width,height,Direction::LEFT);
+                if over {
+                    self.view.offset.x = self.view.offset.x.saturating_sub(1);
+                }
                 x = x.saturating_sub(1);
             }
             KeyCode::Right => {
+                let over = Self::over_screen(x,y,width,height,Direction::RIGHT);
+                if over {
+                    self.view.offset.x = self.view.offset.x.saturating_add(1);
+                }
                 x = min(width.saturating_sub(1), x.saturating_add(1));
             }
             KeyCode::PageUp => {

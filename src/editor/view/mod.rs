@@ -1,11 +1,14 @@
+use std::cmp::min;
+
 use super::buffer::Buffer;
-use super::terminal::{ Size, Terminal};
+use super::terminal::{ Position, Size, Terminal};
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct View {
     view_buffer: Buffer,
     needs_redraw: bool,
     size: Size,
+    pub offset: Position
 }
 
 impl View {
@@ -14,9 +17,10 @@ impl View {
             view_buffer: Buffer::default(),
             needs_redraw: true,
             size: Size {
-                width: Terminal::size().unwrap_or(Size{width:0,height:0}).width,
-                height: Terminal::size().unwrap_or(Size{width:0,height:0}).height,
+                width: Terminal::size().unwrap_or_default().width,
+                height: Terminal::size().unwrap_or_default().height,
             },
+            offset:Position::default()
         }
     }
 
@@ -30,12 +34,9 @@ impl View {
         }
         let vertical_center = height / 3;
         for current_row in 0..height {
-            if let Some(line) = self.view_buffer.lines.get(current_row as usize) {
-                let truncated_line = if line.len() >= width as usize{
-                    &line[0..width as usize]
-                } else {
-                    line
-                };
+            if let Some(line) = self.view_buffer.lines.get(current_row.saturating_add(self.offset.y) as usize) {
+                
+                let truncated_line = &line[min(self.offset.x as usize,line.len()) ..min(line.len(),self.offset.x.saturating_add(width) as usize)];
                 Self::render_line(current_row as usize, truncated_line);
             } else if current_row == vertical_center && self.view_buffer.is_empty() {
                 Self::render_line(current_row as usize, &Self::build_welcome_message(width  as usize));
