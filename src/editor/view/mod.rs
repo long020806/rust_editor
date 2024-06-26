@@ -36,7 +36,7 @@ impl View {
         for current_row in 0..height {
             if let Some(line) = self.view_buffer.lines.get(current_row.saturating_add(self.offset.y) as usize) {
                 
-                let truncated_line = &line[min(self.offset.x as usize,line.len()) ..min(line.len(),self.offset.x.saturating_add(width) as usize)];
+                let truncated_line = &line[min(self.offset.x as usize,line.len())..min(line.len(),self.offset.x.saturating_add(width) as usize)];
                 Self::render_line(current_row as usize, truncated_line);
             } else if current_row == vertical_center && self.view_buffer.is_empty() {
                 Self::render_line(current_row as usize, &Self::build_welcome_message(width  as usize));

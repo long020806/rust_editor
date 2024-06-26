@@ -120,7 +120,16 @@ impl Editor {
                 }     
             }
             Resize( width , height) => {
-                self.view.resize(Size{width:width,height:height})
+                let new_size = Size{width:width,height:height-1};
+                self.view.resize(new_size);
+                let end =  new_size.height.saturating_sub(1);
+                if self.location.y + self.view.offset.y > new_size.height{
+                    self.view.offset.y = self.view.offset.y.saturating_add(self.location.y).saturating_sub(end);
+                    self.location.y = end;
+                } else if self.location.y + self.view.offset.y < new_size.height {
+                    self.location.y = self.location.y.saturating_add(self.view.offset.y);
+                    self.view.offset.y = 0
+                }
             } 
             _=>{
 
