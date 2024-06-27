@@ -16,4 +16,11 @@ impl Line {
         self.string.get(start..end).unwrap_or_default().to_string()
     }
 
+    pub fn len(&self) -> usize {
+        self.string.len() 
+    }
+
+    pub fn len_u16(&self) -> u16 {
+        self.string.len()  as u16
+    }
 }
