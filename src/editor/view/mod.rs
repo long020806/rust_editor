@@ -2,6 +2,7 @@ use super::buffer::Buffer;
 use super::editorcommand::{Direction, EditorCommand};
 use super::line::Line;
 use super::terminal::{Position, Size, Terminal};
+use std::char;
 use std::cmp::min;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -202,11 +203,33 @@ impl View {
             .map_or(0, Line::grapheme_count_u16);
     }
 
+    pub fn insert_char(&mut self,character:char){
+        let old_len = self
+            .view_buffer
+            .lines
+            .get(self.location.y as usize)
+            .map_or(0, Line::grapheme_count);
+        self.view_buffer.insert_char(character, self.location);
+        let new_len = self
+            .view_buffer
+            .lines
+            .get(self.location.y as usize)
+            .map_or(0, Line::grapheme_count);
+        let grapheme_delta = new_len.saturating_sub(old_len);
+        if grapheme_delta > 0 {
+            //move right for an added grapheme (should be the regular case)
+            self.move_right();
+        }
+        self.needs_redraw = true;
+    
+    }
+
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
             EditorCommand::Resize(size) => self.resize(size),
             EditorCommand::Move(direction) => self.move_text_location(&direction),
             EditorCommand::Quit => {}
+            EditorCommand::Insert(character) => self.insert_char(character),
         }
     }
     fn render_line(at: usize, line_text: &str) {

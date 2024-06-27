@@ -29,25 +29,8 @@ pub struct Line {
 
 impl Line {
     pub fn from(line_str: &str) -> Self {
-        let fragments = line_str
-            .graphemes(true)
-            .map(|grapheme| {
-                let unicode_width = grapheme.width();
-                let rendered_width = match unicode_width {
-                    0 | 1 => GraphemeWidth::Half,
-                    _ => GraphemeWidth::Full,
-                };
-                let replacement = match unicode_width {
-                    0 => Some('·'),
-                    _ => None,
-                };
-                TextFragment {
-                    grapheme: grapheme.to_string(),
-                    rendered_width,
-                    replacement,
-                }
-            })
-            .collect();
+        let fragments = Self::str_to_fragments(line_str);
+
         Self { fragments }
     }
     /**
@@ -102,7 +85,47 @@ impl Line {
             .sum()
     }
 
-    pub fn width_until_u16(&self, grapheme_index: usize) -> u16{
+    pub fn width_until_u16(&self, grapheme_index: usize) -> u16 {
         self.width_until(grapheme_index) as u16
+    }
+
+    pub fn insert_char(&mut self, character: char, grapheme_index: usize) {
+        let mut result = String::new();
+        
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            // 对应位置添加时 直接加入 其他使用原字符
+            if index == grapheme_index {
+                result.push(character);
+            }
+            result.push_str(&fragment.grapheme);
+        }
+        // 如果在最后行尾直接增加
+        if grapheme_index >= self.fragments.len() {
+            result.push(character);
+        }
+        // 重新转换
+        self.fragments = Self::str_to_fragments(&result);
+    }
+
+    fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
+        line_str
+            .graphemes(true)
+            .map(|grapheme| {
+                let unicode_width = grapheme.width();
+                let rendered_width = match unicode_width {
+                    0 | 1 => GraphemeWidth::Half,
+                    _ => GraphemeWidth::Full,
+                };
+                let replacement = match unicode_width {
+                    0 => Some('·'),
+                    _ => None,
+                };
+                TextFragment {
+                    grapheme: grapheme.to_string(),
+                    rendered_width,
+                    replacement,
+                }
+            })
+            .collect()
     }
 }
