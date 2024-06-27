@@ -85,12 +85,13 @@ impl Editor {
     }
 
     fn render_bottom_info(&self) {
+        let _ = Terminal::set_white();
         // 打印x,y,width,height信息
         let Size{ height,width } = Terminal::size().unwrap_or_default();
         let _ = Terminal::move_cursor_to(Position{x:0,y:height + 1});
         let _ = Terminal::clear_line();
         let _ = Terminal::print(format!("x:{} y:{} offset.x:{} offset.y:{} width:{} height:{}",self.location.x,self.location.y,self.view.offset.x,self.view.offset.y,width,height).as_str());
-
+        let _ = Terminal::reset_color();
     }
 
     fn evaluate_event(&mut self, event: crossterm::event::Event)  {

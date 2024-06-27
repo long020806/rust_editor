@@ -1,5 +1,8 @@
 use std::io::stdout;
 use std::io::Write;
+use crossterm::style::Color;
+use crossterm::style::SetBackgroundColor;
+use crossterm::style::SetForegroundColor;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 use crossterm::Command;
@@ -106,4 +109,17 @@ impl Terminal {
         Self::print(line_text)?;
         Ok(())
     }
+
+    pub fn set_white() -> Result<(), std::io::Error> {
+        Self::excute_command(SetBackgroundColor(Color::White))?;
+        Self::excute_command(SetForegroundColor(Color::Black))?;
+        Ok(())
+    }
+
+    pub fn reset_color() -> Result<(), std::io::Error> {
+        Self::excute_command(SetBackgroundColor(Color::Reset))?;
+        Self::excute_command(SetForegroundColor(Color::Reset))?;
+        Ok(())
+    }
+    
 }
