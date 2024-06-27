@@ -1,6 +1,3 @@
-[target.x86_64-unknown-linux-musl]
-linker = "rust-lld"
-
 [package]
 name = "rust_editor"
 version = "0.1.0"
