@@ -1,16 +1,16 @@
-use std::cmp::min;
-use super::line::Line;
-use super::editorcommand::{Direction,EditorCommand};
 use super::buffer::Buffer;
-use super::terminal::{ Position, Size, Terminal};
+use super::editorcommand::{Direction, EditorCommand};
+use super::line::Line;
+use super::terminal::{Position, Size, Terminal};
+use std::cmp::min;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 pub struct View {
     view_buffer: Buffer,
     needs_redraw: bool,
     size: Size,
-    location:Position,
-    offset: Position
+    location: Position,
+    offset: Position,
 }
 
 impl View {
@@ -22,29 +22,38 @@ impl View {
                 width: Terminal::size().unwrap_or_default().width,
                 height: Terminal::size().unwrap_or_default().height,
             },
-            location:Position::default(),
-            offset:Position::default()
+            location: Position::default(),
+            offset: Position::default(),
         }
     }
 
-
     pub fn render(&mut self) {
         if !self.needs_redraw {
-            return ;
+            return;
         }
         let Size { height, width } = self.size;
         if height == 0 || width == 0 {
-            return ;
+            return;
         }
         let vertical_center = height / 3;
         let top = self.offset.y;
         for current_row in 0..height {
-            if let Some(line) = self.view_buffer.lines.get(current_row.saturating_add(top) as usize) {
+            if let Some(line) = self
+                .view_buffer
+                .lines
+                .get(current_row.saturating_add(top) as usize)
+            {
                 let left = self.offset.x;
                 let right = self.offset.x.saturating_add(width);
-                Self::render_line(current_row as usize, &line.get(left as usize..right as usize));
+                Self::render_line(
+                    current_row as usize,
+                    &line.get_visible_graphemes(left as usize..right as usize),
+                );
             } else if current_row == vertical_center && self.view_buffer.is_empty() {
-                Self::render_line(current_row as usize, &Self::build_welcome_message(width  as usize));
+                Self::render_line(
+                    current_row as usize,
+                    &Self::build_welcome_message(width as usize),
+                );
             } else {
                 Self::render_line(current_row as usize, "~");
             }
@@ -53,85 +62,146 @@ impl View {
             }
         }
         self.needs_redraw = false;
-
     }
-    pub fn get_position(&self) -> Position {
-        self.location.subtract(&self.offset).into()
-    }
+    // pub fn get_position(&self) -> Position {
+    //     self.location.subtract(&self.offset).into()
+    // }
 
     fn move_text_location(&mut self, direction: &Direction) {
-        let Position { mut x, mut y } = self.location;
         let Size { height, .. } = self.size;
         match direction {
-            Direction::Up => {
-                y = y.saturating_sub(1);
-            }
-            Direction::Down => {
-                y = y.saturating_add(1);
-            }
-            Direction::Left => {
-                if x > 0 {
-                    x -= 1;
-                } else if y > 0 {
-                    y -= 1;
-                    x = self.view_buffer.lines.get(y as usize).map_or(0 , Line::len_u16) ;
-                }
-            }
-            Direction::Right => {
-                let width = self.view_buffer.lines.get(y as usize).map_or(0 as usize, Line::len) ;
-                if x < width as u16  {
-                    x += 1;
-                } else {
-                    y = y.saturating_add(1);
-                    x = 0;
-                }
-            }
-            Direction::PageUp => {
-                y = y.saturating_sub(height).saturating_sub(1);
-            }
-            Direction::PageDown => {
-                y = y.saturating_add(height).saturating_sub(1);
-            }
-            Direction::Home => {
-                x = 0;
-            }
-            Direction::End => {
-                x = self.view_buffer.lines.get(y as usize).map_or(0, Line::len_u16);
-            }
+            Direction::Up => self.move_up(1),
+            Direction::Down => self.move_down(1),
+            Direction::Left => self.move_left(),
+            Direction::Right => self.move_right(),
+            Direction::PageUp => self.move_up(height.saturating_sub(1) as usize),
+            Direction::PageDown => self.move_down(height.saturating_sub(1) as usize),
+            Direction::Home => self.move_to_start_of_line(),
+            Direction::End => self.move_to_end_of_line(),
         }
-        // 限制不能超出文字范围
-        x = self.view_buffer.lines.get(y as usize).map_or(0, |line| min(line.len_u16(), x));
-        y = min(y, self.view_buffer.lines.len() as u16);
-        self.location = Position { x, y };
-        self.scroll_location_into_view();
+        self.scroll_text_location_into_view();
     }
-
-
-    fn scroll_location_into_view(&mut self) {
-        let Position { x, y } = self.location;
-        let Size { width, height } = self.size;
+    fn scroll_text_location_into_view(&mut self) {
+        let Position { y, x } = self.text_location_to_position();
+        self.scroll_vertically(y);
+        self.scroll_horizontally(x);
+    }
+    fn scroll_vertically(&mut self, row: u16) {
+        let Size { height, .. } = self.size;
         let mut offset_changed = false;
 
         // Scroll vertically
-        if y < self.offset.y {
-            self.offset.y = y;
+        if row < self.offset.y {
+            self.offset.y = row;
             offset_changed = true;
-        } else if y >= self.offset.y.saturating_add(height) {
+        } else if row >= self.offset.y.saturating_add(height) {
             // 如果 y >= offset.y + height offset.y = y -height + 1
-            self.offset.y = y.saturating_sub(height).saturating_add(1);
+            self.offset.y = row.saturating_sub(height).saturating_add(1);
             offset_changed = true;
         }
 
+        self.needs_redraw = self.needs_redraw || offset_changed;
+    }
+
+    fn scroll_horizontally(&mut self, col: u16) {
+        let Size { width, .. } = self.size;
+        let mut offset_changed = false;
+
         //Scroll horizontally
-        if x < self.offset.x {
-            self.offset.x = x;
+        if col < self.offset.x {
+            self.offset.x = col;
             offset_changed = true;
-        } else if x >= self.offset.x.saturating_add(width) {
-            self.offset.x = x.saturating_sub(width).saturating_add(1);
+        } else if col >= self.offset.x.saturating_add(width) {
+            self.offset.x = col.saturating_sub(width).saturating_add(1);
             offset_changed = true;
         }
-        self.needs_redraw = offset_changed;
+
+        self.needs_redraw = self.needs_redraw || offset_changed;
     }
+
+    fn scroll_location_into_view(&mut self) {
+        let Position { x, y } = self.location;
+
+        self.scroll_vertically(x);
+        self.scroll_horizontally(y);
+    }
+    pub fn caret_position(&self) -> Position {
+        self.text_location_to_position().subtract(&self.offset)
+    }
+
+    fn text_location_to_position(&self) -> Position {
+        let row = self.location.y;
+        let col = self
+            .view_buffer
+            .lines
+            .get(row as usize)
+            .map_or(0, |line| line.width_until_u16(self.location.x as usize));
+        Position { x: col, y: row }
+    }
+
+    fn move_up(&mut self, step: usize) {
+        self.location.y = self.location.y.saturating_sub(step as u16);
+        self.snap_to_valid_grapheme();
+    }
+    fn move_down(&mut self, step: usize) {
+        self.location.y = self.location.y.saturating_add(step as u16);
+        self.snap_to_valid_grapheme();
+        self.snap_to_valid_line();
+    }
+    // clippy::arithmetic_side_effects: This function performs arithmetic calculations
+    // after explicitly checking that the target value will be within bounds.
+    #[allow(clippy::arithmetic_side_effects)]
+    fn move_right(&mut self) {
+        let line_width = self
+            .view_buffer
+            .lines
+            .get(self.location.y as usize)
+            .map_or(0, Line::grapheme_count_u16);
+        if self.location.x < line_width {
+            self.location.x += 1;
+        } else {
+            self.move_to_start_of_line();
+            self.move_down(1);
+        }
+    }
+    // clippy::arithmetic_side_effects: This function performs arithmetic calculations
+    // after explicitly checking that the target value will be within bounds.
+    #[allow(clippy::arithmetic_side_effects)]
+    fn move_left(&mut self) {
+        if self.location.x > 0 {
+            self.location.x -= 1;
+        } else {
+            self.move_up(1);
+            self.move_to_end_of_line();
+        }
+    }
+
+    // Ensures self.location.grapheme_index points to a valid grapheme index by snapping it to the left most grapheme if appropriate.
+    // Doesn't trigger scrolling.
+    fn snap_to_valid_grapheme(&mut self) {
+        self.location.x = self
+            .view_buffer
+            .lines
+            .get(self.location.y as usize)
+            .map_or(0, |line| min(line.grapheme_count_u16(), self.location.x));
+    }
+    // Ensures self.location.line_index points to a valid line index by snapping it to the bottom most line if appropriate.
+    // Doesn't trigger scrolling.
+    fn snap_to_valid_line(&mut self) {
+        self.location.y = min(self.location.y, self.view_buffer.height_u16());
+    }
+
+    fn move_to_start_of_line(&mut self) {
+        self.location.x = 0;
+    }
+    fn move_to_end_of_line(&mut self) {
+        self.location.x = self
+            .view_buffer
+            .lines
+            .get(self.location.y as usize)
+            .map_or(0, Line::grapheme_count_u16);
+    }
+
     pub fn handle_command(&mut self, command: EditorCommand) {
         match command {
             EditorCommand::Resize(size) => self.resize(size),
@@ -168,7 +238,6 @@ impl View {
         full_message.truncate(width);
         full_message
     }
-
 
     pub fn load(&mut self, file_name: &str) {
         if let Ok(buffer) = Buffer::load(file_name) {

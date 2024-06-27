@@ -67,7 +67,7 @@ impl Editor {
         } else {
             let _ = self.view.render();
             // let _ = self.render_bottom_info();
-            let _ = Terminal::move_cursor_to(self.view.get_position());
+            let _ = Terminal::move_cursor_to(self.view.caret_position());
         }
         let _ = Terminal::show_cursor();
         let _ = Terminal::execute();
