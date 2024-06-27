@@ -1,8 +1,5 @@
 use std::io::stdout;
 use std::io::Write;
-use crossterm::style::Color;
-use crossterm::style::SetBackgroundColor;
-use crossterm::style::SetForegroundColor;
 use crossterm::terminal::EnterAlternateScreen;
 use crossterm::terminal::LeaveAlternateScreen;
 use crossterm::Command;
@@ -24,6 +21,12 @@ impl Position {
         Position{
             x:0,
             y:0
+        }
+    }
+    pub const fn subtract(&self, other: &Self) -> Self {
+        Self {
+            x: self.x.saturating_sub(other.x),
+            y: self.y.saturating_sub(other.y),
         }
     }
 }
@@ -75,7 +78,7 @@ impl Terminal {
 
     pub fn size() -> Result<Size, std::io::Error> {
         let (size_x,size_y) = crossterm::terminal::size()?;
-        Ok(Size { height: size_y - 1, width: size_x })
+        Ok(Size { height: size_y , width: size_x })
     }
     
     pub fn hide_cursor() -> Result<(), std::io::Error> {
@@ -107,18 +110,6 @@ impl Terminal {
         Self::move_cursor_to(Position { x: 0, y: at as u16 })?;
         Self::clear_line()?;
         Self::print(line_text)?;
-        Ok(())
-    }
-
-    pub fn set_white() -> Result<(), std::io::Error> {
-        Self::excute_command(SetBackgroundColor(Color::White))?;
-        Self::excute_command(SetForegroundColor(Color::Black))?;
-        Ok(())
-    }
-
-    pub fn reset_color() -> Result<(), std::io::Error> {
-        Self::excute_command(SetBackgroundColor(Color::Reset))?;
-        Self::excute_command(SetForegroundColor(Color::Reset))?;
         Ok(())
     }
     

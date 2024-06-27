@@ -1,14 +1,15 @@
 use std::fs::read_to_string;
 use std::io::Error;
+use crate::editor::line::Line;
 
-pub struct Buffer{
-    pub lines:Vec<String>
+pub struct Buffer {
+    pub lines: Vec<Line>,
 }
 
-impl Buffer{
-    pub fn default() -> Buffer{
-        Buffer{
-            lines:vec![]
+impl Buffer {
+    pub fn default() -> Buffer {
+        Buffer {
+            lines: vec![]
         }
     }
 
@@ -16,13 +17,11 @@ impl Buffer{
         let contents = read_to_string(file_name)?;
         let mut lines = Vec::new();
         for value in contents.lines() {
-            lines.push(String::from(value));
+            lines.push(Line::from(value));
         }
         Ok(Self { lines })
     }
-    pub fn is_empty(&self) -> bool{
+    pub fn is_empty(&self) -> bool {
         self.lines.is_empty()
     }
-
-
 }

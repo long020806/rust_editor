@@ -1,5 +1,5 @@
-use std::cmp::min;
 
+use super::editorcommand::{Direction,EditorCommand};
 use super::buffer::Buffer;
 use super::terminal::{ Position, Size, Terminal};
 const NAME: &str = env!("CARGO_PKG_NAME");
@@ -8,7 +8,8 @@ pub struct View {
     view_buffer: Buffer,
     needs_redraw: bool,
     size: Size,
-    pub offset: Position
+    location:Position,
+    offset: Position
 }
 
 impl View {
@@ -20,12 +21,9 @@ impl View {
                 width: Terminal::size().unwrap_or_default().width,
                 height: Terminal::size().unwrap_or_default().height,
             },
+            location:Position::default(),
             offset:Position::default()
         }
-    }
-
-    pub fn get_buffer_text(&self) -> String{
-        self.view_buffer.lines.join("\n")
     }
 
     pub fn render(&mut self) {
@@ -37,11 +35,12 @@ impl View {
             return ;
         }
         let vertical_center = height / 3;
+        let top = self.offset.y;
         for current_row in 0..height {
-            if let Some(line) = self.view_buffer.lines.get(current_row.saturating_add(self.offset.y) as usize) {
-                
-                let truncated_line = &line[min(self.offset.x as usize,line.len())..min(line.len(),self.offset.x.saturating_add(width) as usize)];
-                Self::render_line(current_row as usize, truncated_line);
+            if let Some(line) = self.view_buffer.lines.get(current_row.saturating_add(top) as usize) {
+                let left = self.offset.x;
+                let right = self.offset.x.saturating_add(width);
+                Self::render_line(current_row as usize, &line.get(left as usize..right as usize));
             } else if current_row == vertical_center && self.view_buffer.is_empty() {
                 Self::render_line(current_row as usize, &Self::build_welcome_message(width  as usize));
             } else {
@@ -53,6 +52,76 @@ impl View {
         }
         self.needs_redraw = false;
 
+    }
+    pub fn get_position(&self) -> Position {
+        self.location.subtract(&self.offset).into()
+    }
+
+    fn move_text_location(&mut self, direction: &Direction) {
+        let Position { mut x, mut y } = self.location;
+        let Size { height, width } = self.size;
+        match direction {
+            Direction::Up => {
+                y = y.saturating_sub(1);
+            }
+            Direction::Down => {
+                y = y.saturating_add(1);
+            }
+            Direction::Left => {
+                x = x.saturating_sub(1);
+            }
+            Direction::Right => {
+                x = x.saturating_add(1);
+            }
+            Direction::PageUp => {
+                y = 0;
+            }
+            Direction::PageDown => {
+                y = height.saturating_sub(1);
+            }
+            Direction::Home => {
+                x = 0;
+            }
+            Direction::End => {
+                x = width.saturating_sub(1);
+            }
+        }
+        self.location = Position { x, y };
+        self.scroll_location_into_view();
+    }
+
+
+    fn scroll_location_into_view(&mut self) {
+        let Position { x, y } = self.location;
+        let Size { width, height } = self.size;
+        let mut offset_changed = false;
+
+        // Scroll vertically
+        if y < self.offset.y {
+            self.offset.y = y;
+            offset_changed = true;
+        } else if y >= self.offset.y.saturating_add(height) {
+            // 如果 y >= offset.y + height offset.y = y -height + 1
+            self.offset.y = y.saturating_sub(height).saturating_add(1);
+            offset_changed = true;
+        }
+
+        //Scroll horizontally
+        if x < self.offset.x {
+            self.offset.x = x;
+            offset_changed = true;
+        } else if x >= self.offset.x.saturating_add(width) {
+            self.offset.x = x.saturating_sub(width).saturating_add(1);
+            offset_changed = true;
+        }
+        self.needs_redraw = offset_changed;
+    }
+    pub fn handle_command(&mut self, command: EditorCommand) {
+        match command {
+            EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Move(direction) => self.move_text_location(&direction),
+            EditorCommand::Quit => {}
+        }
     }
     fn render_line(at: usize, line_text: &str) {
         let result = Terminal::print_row(at, line_text);
@@ -92,12 +161,9 @@ impl View {
         }
     }
 
-    pub fn set_render(&mut self, should_render: bool) {
-        self.needs_redraw = should_render;
-    }
-
     pub fn resize(&mut self, to: Size) {
         self.size = to;
+        self.scroll_location_into_view();
         self.needs_redraw = true;
     }
 }

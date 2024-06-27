@@ -1,30 +1,21 @@
 mod terminal;
 mod view;
 mod buffer;
-use std::fs::File;
-use std::io::Write;
+mod line;
+mod editorcommand;
+
 use view::View;
-use crossterm::event::Event::{Key,Resize};
-use crossterm::event::{read, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use terminal::{Position, Size, Terminal};
+use crossterm::event::{read, KeyEvent, KeyEventKind, Event};
+use terminal::{Position, Terminal};
 use std::{
     env,
     io::Error,
     panic::{set_hook, take_hook},
-    cmp::min
 };
-use std::time::SystemTime;
-
-enum Direction{
-    UP,
-    DOWN,
-    LEFT,
-    RIGHT
-}
+use editorcommand::EditorCommand;
 
 pub struct Editor {
     should_quit: bool,
-    location: Position,
     view:View
 }
 impl Editor {
@@ -44,7 +35,6 @@ impl Editor {
         }
         Ok(Self {
             should_quit: false,
-            location: Position::default(),
             view,
         })
     }
@@ -76,164 +66,46 @@ impl Editor {
             let _ = Terminal::print("Goodbye.\r\n");
         } else {
             let _ = self.view.render();
-            let _ = self.render_bottom_info();
-            let _ = Terminal::move_cursor_to(Position { x: self.location.x, y:  self.location.y });
+            // let _ = self.render_bottom_info();
+            let _ = Terminal::move_cursor_to(self.view.get_position());
         }
         let _ = Terminal::show_cursor();
         let _ = Terminal::execute();
 
     }
 
-    fn render_bottom_info(&self) {
-        let _ = Terminal::set_white();
-        // 打印x,y,width,height信息
-        let Size{ height,width } = Terminal::size().unwrap_or_default();
-        let _ = Terminal::move_cursor_to(Position{x:0,y:height + 1});
-        let _ = Terminal::clear_line();
-        let _ = Terminal::print(format!("x:{} y:{} offset.x:{} offset.y:{} width:{} height:{}",self.location.x,self.location.y,self.view.offset.x,self.view.offset.y,width,height).as_str());
-        let _ = Terminal::reset_color();
-    }
-
     fn evaluate_event(&mut self, event: crossterm::event::Event)  {
-        match event
-        { 
-            Key(KeyEvent {
-                code,
-                modifiers,
-                kind: KeyEventKind::Press,
-                ..
-            }) => {
-                match code {
-                    KeyCode::Char('q') if modifiers == KeyModifiers::CONTROL => {
-                        self.should_quit = true;
-                    }
-                    KeyCode::Char('s') if modifiers == KeyModifiers::CONTROL => {
-                        self.save_file();
-                    }
-                    KeyCode::Up
-                    | KeyCode::Down
-                    | KeyCode::Left
-                    | KeyCode::Right
-                    | KeyCode::PageDown
-                    | KeyCode::PageUp
-                    | KeyCode::End
-                    | KeyCode::Home => {
-                        self.view.set_render(true);
-                        self.move_point(code);
-                    }
-    
-                    _ => {
-                    },
-                }     
-            }
-            Resize( width , height) => {
-                let new_size = Size{width:width,height:height-1};
-                self.view.resize(new_size);
-                let end =  new_size.height.saturating_sub(1);
-                if self.location.y + self.view.offset.y > new_size.height{
-                    self.view.offset.y = self.view.offset.y.saturating_add(self.location.y).saturating_sub(end);
-                    self.location.y = end;
-                } else if self.location.y + self.view.offset.y < new_size.height {
-                    self.location.y = self.location.y.saturating_add(self.view.offset.y);
-                    self.view.offset.y = 0
-                }
-            } 
-            _=>{
-
-            },
-      
+        let should_process = match &event {
+            Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
+            Event::Resize(_, _) => true,
+            _ => false,
         };
-
-    }
-
-    fn get_time_stamp() -> String{
-        let now = SystemTime::now();
-        let unix_timestamp = now.duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-        return unix_timestamp.to_string();
-    }
-    fn save_file(&self){
-
-        let mut file = File::create(Self::get_time_stamp()).expect("Could not create file");
-        let text = self.view.get_buffer_text();
-        writeln!(file, "{}",text)
-            .expect("Could not write to file");
-    }
-
-    fn over_screen(x:u16,y:u16,width:u16,height:u16,direction:Direction) -> bool {
-        match direction {
-            Direction::UP => {
-                if y == 0 {
-                    return true;
+        if should_process {
+            match EditorCommand::try_from(event) {
+                Ok(command) => {
+                    if matches!(command, EditorCommand::Quit) {
+                        self.should_quit = true;
+                    } else {
+                        self.view.handle_command(command);
+                    }
+                }
+                Err(err) => {
+                    #[cfg(debug_assertions)]
+                    {
+                        panic!("Could not handle command: {err}");
+                    }
                 }
             }
-            Direction::DOWN =>{
-                if y == height - 1 {
-                    return true;
-                }
-            }
-            Direction::LEFT => {
-                if x == 0 {
-                    return true;
-                }
-            }
-            Direction::RIGHT => {
-                if x == width - 1 {
-                    return true;
-                }
-            }
+        }else {
+            // #[cfg(debug_assertions)]
+            // {
+            //     panic!("Received and discarded unsupported or non-press event.");
+            // }
         }
-        return false;
+
+
     }
 
-    fn move_point(&mut self, key_code: KeyCode)  {
-        let Position { mut x, mut y } = self.location;
-        let Size { height, width } = Terminal::size().unwrap_or_default();
-        match key_code {
-            KeyCode::Up => {
-                let over = Self::over_screen(x,y,width,height,Direction::UP);
-                if over {
-                    self.view.offset.y = self.view.offset.y.saturating_sub(1);
-                }
-                y = y.saturating_sub(1);
-                
-            }
-            KeyCode::Down => {
-                let over = Self::over_screen(x,y,width,height,Direction::DOWN);
-                if over {
-                    self.view.offset.y = self.view.offset.y.saturating_add(1);
-                }
-                y = min(height.saturating_sub(1), y.saturating_add(1));
-            }
-            KeyCode::Left => {
-                let over = Self::over_screen(x,y,width,height,Direction::LEFT);
-                if over {
-                    self.view.offset.x = self.view.offset.x.saturating_sub(1);
-                }
-                x = x.saturating_sub(1);
-            }
-            KeyCode::Right => {
-                let over = Self::over_screen(x,y,width,height,Direction::RIGHT);
-                if over {
-                    self.view.offset.x = self.view.offset.x.saturating_add(1);
-                }
-                x = min(width.saturating_sub(1), x.saturating_add(1));
-            }
-            KeyCode::PageUp => {
-                y = 0;
-            }
-            KeyCode::PageDown => {
-                y = height.saturating_sub(1);
-            }
-            KeyCode::Home => {
-                x = 0;
-            }
-            KeyCode::End => {
-                x = width.saturating_sub(1);
-            }
-            _ => (),
-        }
-        self.location = Position { x, y };
-    }
 }
 
 
