@@ -212,9 +212,13 @@ impl View {
             EditorCommand::Backspace => {self.backspace()}
             EditorCommand::Delete => {self.delete()}
             EditorCommand::Enter => {self.insert_newline()}
+            EditorCommand::Tab => {self.tab()}
         }
     }
-
+    pub fn tab(&mut self){
+        self.insert_char(' ');
+        self.insert_char(' ');
+    }
     pub fn insert_char(&mut self,character:char){
         let old_len = self
             .view_buffer
