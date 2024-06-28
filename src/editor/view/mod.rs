@@ -171,7 +171,7 @@ impl View {
     fn move_left(&mut self) {
         if self.location.x > 0 {
             self.location.x -= 1;
-        } else {
+        } else if self.location.y > 0{
             self.move_up(1);
             self.move_to_end_of_line();
         }
@@ -203,6 +203,17 @@ impl View {
             .map_or(0, Line::grapheme_count_u16);
     }
 
+    pub fn handle_command(&mut self, command: EditorCommand) {
+        match command {
+            EditorCommand::Resize(size) => self.resize(size),
+            EditorCommand::Move(direction) => self.move_text_location(&direction),
+            EditorCommand::Quit => {}
+            EditorCommand::Insert(character) => self.insert_char(character),
+            EditorCommand::Backspace => {self.backspace()}
+            EditorCommand::Delete => {self.delete()}
+        }
+    }
+
     pub fn insert_char(&mut self,character:char){
         let old_len = self
             .view_buffer
@@ -218,20 +229,23 @@ impl View {
         let grapheme_delta = new_len.saturating_sub(old_len);
         if grapheme_delta > 0 {
             //move right for an added grapheme (should be the regular case)
-            self.move_right();
+            self.move_text_location(&Direction::Right);
         }
         self.needs_redraw = true;
-    
     }
 
-    pub fn handle_command(&mut self, command: EditorCommand) {
-        match command {
-            EditorCommand::Resize(size) => self.resize(size),
-            EditorCommand::Move(direction) => self.move_text_location(&direction),
-            EditorCommand::Quit => {}
-            EditorCommand::Insert(character) => self.insert_char(character),
+    pub fn backspace(&mut self){
+        if self.location.y != 0 || self.location.x != 0 {
+            self.move_text_location(&Direction::Left);
+            self.delete();
         }
     }
+
+    pub fn delete(&mut self){
+        self.view_buffer.delete(self.location);
+        self.needs_redraw = true;
+    }
+
     fn render_line(at: usize, line_text: &str) {
         let result = Terminal::print_row(at, line_text);
         debug_assert!(result.is_ok(), "Failed to render line");

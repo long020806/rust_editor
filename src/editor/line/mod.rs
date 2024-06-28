@@ -1,4 +1,4 @@
-use std::ops::Range;
+use std::{ops::Range, fmt};
 use unicode_segmentation::UnicodeSegmentation;
 use unicode_width::UnicodeWidthStr;
 
@@ -89,24 +89,6 @@ impl Line {
         self.width_until(grapheme_index) as u16
     }
 
-    pub fn insert_char(&mut self, character: char, grapheme_index: usize) {
-        let mut result = String::new();
-        
-        for (index, fragment) in self.fragments.iter().enumerate() {
-            // 对应位置添加时 直接加入 其他使用原字符
-            if index == grapheme_index {
-                result.push(character);
-            }
-            result.push_str(&fragment.grapheme);
-        }
-        // 如果在最后行尾直接增加
-        if grapheme_index >= self.fragments.len() {
-            result.push(character);
-        }
-        // 重新转换
-        self.fragments = Self::str_to_fragments(&result);
-    }
-
     fn str_to_fragments(line_str: &str) -> Vec<TextFragment> {
         line_str
             .graphemes(true)
@@ -127,5 +109,55 @@ impl Line {
                 }
             })
             .collect()
+    }
+
+    pub fn insert_char(&mut self, character: char, grapheme_index: usize) {
+        let mut result = String::new();
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            // 对应位置添加时 直接加入 其他使用原字符
+            if index == grapheme_index {
+                result.push(character);
+            }
+            result.push_str(&fragment.grapheme);
+        }
+        // 如果在最后行尾直接增加
+        if grapheme_index >= self.fragments.len() {
+            result.push(character);
+        }
+        // 重新转换
+        self.fragments = Self::str_to_fragments(&result);
+    }
+
+    pub fn delete(&mut self,grapheme_index: usize){
+        let mut result = String::new();
+        for (index, fragment) in self.fragments.iter().enumerate() {
+            // 对应位置添加时 直接加入 其他使用原字符
+            if index == grapheme_index {
+                continue;
+            }
+            result.push_str(&fragment.grapheme);
+        }
+        // 重新转换
+        self.fragments = Self::str_to_fragments(&result);
+    }
+
+    pub fn append(&mut self, other: &Self) {
+        let mut concat = self.to_string();
+        concat.push_str(&other.to_string());
+        self.fragments = Self::str_to_fragments(&concat);
+    }
+
+}
+/**
+ * 提供to_string 方法
+ */
+impl fmt::Display for Line {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        let result: String = self
+            .fragments
+            .iter()
+            .map(|fragment| fragment.grapheme.clone())
+            .collect();
+        write!(formatter, "{result}")
     }
 }
