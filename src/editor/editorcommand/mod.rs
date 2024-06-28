@@ -2,7 +2,7 @@ use crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
 use std::convert::TryFrom;
 
 use super::terminal::Size;
-
+#[derive(Clone, Copy)]
 pub enum Direction {
     PageUp,
     PageDown,
@@ -13,6 +13,7 @@ pub enum Direction {
     Right,
     Down,
 }
+#[derive(Clone, Copy)]
 pub enum EditorCommand {
     Move(Direction),
     Resize(Size),
@@ -21,7 +22,9 @@ pub enum EditorCommand {
     Backspace,
     Delete,
     Enter,
-    Tab
+    Tab,
+    Save,
+    // SaveAs(String)
 }
 impl TryFrom<Event> for EditorCommand {
     type Error = String;
@@ -34,6 +37,7 @@ impl TryFrom<Event> for EditorCommand {
                     Ok(Self::Insert(character))
                 }
                 (KeyCode::Char('q'), KeyModifiers::CONTROL) => Ok(Self::Quit),
+                (KeyCode::Char('s'), KeyModifiers::CONTROL) => Ok(Self::Save),
                 (KeyCode::Up, _) => Ok(Self::Move(Direction::Up)),
                 (KeyCode::Down, _) => Ok(Self::Move(Direction::Down)),
                 (KeyCode::Left, _) => Ok(Self::Move(Direction::Left)),

@@ -16,13 +16,13 @@ impl GraphemeWidth {
         }
     }
 }
-
+#[derive(Clone)]
 struct TextFragment {
     grapheme: String,
     rendered_width: GraphemeWidth,
     replacement: Option<char>,
 }
-#[derive(Default)]
+#[derive(Default,Clone)]
 pub struct Line {
     fragments: Vec<TextFragment>,
 }

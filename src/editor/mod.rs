@@ -3,8 +3,12 @@ mod view;
 mod buffer;
 mod line;
 mod editorcommand;
-
+mod statusbar;
+mod documentstatus;
+mod fileinfo;
 use view::View;
+mod uicomponent;
+mod messagebar;
 use crossterm::event::{read, KeyEvent, KeyEventKind, Event};
 use terminal::{Position, Terminal};
 use std::{
@@ -12,11 +16,21 @@ use std::{
     io::Error,
     panic::{set_hook, take_hook},
 };
+use statusbar::StatusBar;
 use editorcommand::EditorCommand;
 
+use self::{messagebar::MessageBar, terminal::Size, uicomponent::UIComponent};
+
+pub const NAME: &str = env!("CARGO_PKG_NAME");
+// pub const VERSION: &str = env!("CARGO_PKG_VERSION");
+#[derive(Default)]
 pub struct Editor {
     should_quit: bool,
-    view:View
+    view:View,
+    statusbar:StatusBar,
+    message_bar: MessageBar,
+    terminal_size: Size,
+    title:String
 }
 impl Editor {
 
@@ -28,15 +42,43 @@ impl Editor {
             current_hook(panic_info);
         }));
         Terminal::initialize()?;
-        let mut view = View::default();
+        let mut editor = Self::default();
+        let size = Terminal::size().unwrap_or_default();
+        editor.resize(size);
         let args: Vec<String> = env::args().collect();
         if let Some(file_name) = args.get(1) {
-            view.load(file_name);
+            editor.view.load(file_name);
         }
-        Ok(Self {
-            should_quit: false,
-            view,
-        })
+        editor
+            .message_bar
+            .update_message("HELP: Ctrl-S = save | Ctrl-Q = quit".to_string());
+        editor.refresh_status();
+        Ok(editor)
+    }
+
+    fn resize(&mut self, size: Size) {
+        self.terminal_size = size;
+        self.view.resize(Size {
+            height: size.height.saturating_sub(2),
+            width: size.width,
+        });
+        self.message_bar.resize(Size {
+            height: 1,
+            width: size.width,
+        });
+        self.statusbar.resize(Size {
+            height: 1,
+            width: size.width,
+        });
+    }
+
+    pub fn refresh_status(&mut self) {
+        let status = self.view.get_status();
+        let title = format!("{} - {NAME}", status.file_name);
+        self.statusbar.update_status(status);
+        if title != self.title && matches!(Terminal::set_title(&title), Ok(())) {
+            self.title = title;
+        }
     }
     pub fn run(&mut self) {
         loop {
@@ -54,19 +96,31 @@ impl Editor {
                     }
                 }
             }
+            let status = self.view.get_status();
+            self.statusbar.update_status(status);
         }
     }
 
 
     fn refresh_screen(&mut self)  {
+        if self.terminal_size.height == 0 || self.terminal_size.width == 0 {
+            return;
+        }
         let _ = Terminal::hide_cursor();
         let _ =  Terminal::move_cursor_to(Position{x:0,y:0});
         if self.should_quit {
             let _ = Terminal::clear_screen();
             let _ = Terminal::print("Goodbye.\r\n");
         } else {
-            let _ = self.view.render();
-            // let _ = self.render_bottom_info();
+            self.message_bar
+            .render(self.terminal_size.height.saturating_sub(1) as usize);
+            if self.terminal_size.height > 1 {
+                self.statusbar
+                    .render(self.terminal_size.height.saturating_sub(2) as usize);
+            }
+            if self.terminal_size.height > 2 {
+                self.view.render(0);
+            }
             let _ = Terminal::move_cursor_to(self.view.caret_position());
         }
         let _ = Terminal::show_cursor();
@@ -85,7 +139,10 @@ impl Editor {
                 Ok(command) => {
                     if matches!(command, EditorCommand::Quit) {
                         self.should_quit = true;
-                    } else {
+                    } else if let EditorCommand::Resize(size) = command {
+                        self.resize(size);
+                    }
+                    else {
                         self.view.handle_command(command);
                     }
                 }
