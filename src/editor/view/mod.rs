@@ -249,11 +249,11 @@ impl View {
         format!("{:<1}{:^remaining_width$}", "~", welcome_message)
     }
 
-    pub fn load(&mut self, file_name: &str) {
-        if let Ok(buffer) = Buffer::load(file_name) {
-            self.view_buffer = buffer;
-            self.mark_redraw(true);
-        }
+    pub fn load(&mut self, file_name: &str) -> Result<(),std::io::Error> {
+        let buffer = Buffer::load(file_name)?;
+        self.view_buffer = buffer;
+        self.mark_redraw(true);
+        Ok(())
     }
 
 }
