@@ -1,23 +1,23 @@
+mod buffer;
+mod documentstatus;
+mod editorcommand;
+mod fileinfo;
+mod line;
+mod statusbar;
 mod terminal;
 mod view;
-mod buffer;
-mod line;
-mod editorcommand;
-mod statusbar;
-mod documentstatus;
-mod fileinfo;
 use view::View;
-mod uicomponent;
 mod messagebar;
-use crossterm::event::{read, KeyEvent, KeyEventKind, Event};
-use terminal::{Position, Terminal};
+mod uicomponent;
+use crossterm::event::{read, Event, KeyEvent, KeyEventKind};
+use editorcommand::EditorCommand;
+use statusbar::StatusBar;
 use std::{
     env,
     io::Error,
     panic::{set_hook, take_hook},
 };
-use statusbar::StatusBar;
-use editorcommand::EditorCommand;
+use terminal::{Position, Terminal};
 
 use self::{messagebar::MessageBar, terminal::Size, uicomponent::UIComponent};
 
@@ -26,15 +26,13 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 #[derive(Default)]
 pub struct Editor {
     should_quit: bool,
-    view:View,
-    statusbar:StatusBar,
+    view: View,
+    statusbar: StatusBar,
     message_bar: MessageBar,
     terminal_size: Size,
-    title:String
+    title: String,
 }
 impl Editor {
-
-
     pub fn new() -> Result<Self, Error> {
         let current_hook = take_hook();
         set_hook(Box::new(move |panic_info| {
@@ -101,34 +99,27 @@ impl Editor {
         }
     }
 
-
-    fn refresh_screen(&mut self)  {
+    fn refresh_screen(&mut self) {
         if self.terminal_size.height == 0 || self.terminal_size.width == 0 {
             return;
         }
         let _ = Terminal::hide_cursor();
-        let _ =  Terminal::move_cursor_to(Position{x:0,y:0});
-        if self.should_quit {
-            let _ = Terminal::clear_screen();
-            let _ = Terminal::print("Goodbye.\r\n");
-        } else {
-            self.message_bar
+        let _ = Terminal::move_cursor_to(Position { x: 0, y: 0 });
+        self.message_bar
             .render(self.terminal_size.height.saturating_sub(1) as usize);
-            if self.terminal_size.height > 1 {
-                self.statusbar
-                    .render(self.terminal_size.height.saturating_sub(2) as usize);
-            }
-            if self.terminal_size.height > 2 {
-                self.view.render(0);
-            }
-            let _ = Terminal::move_cursor_to(self.view.caret_position());
+        if self.terminal_size.height > 1 {
+            self.statusbar
+                .render(self.terminal_size.height.saturating_sub(2) as usize);
         }
+        if self.terminal_size.height > 2 {
+            self.view.render(0);
+        }
+        let _ = Terminal::move_cursor_to(self.view.caret_position());
         let _ = Terminal::show_cursor();
         let _ = Terminal::execute();
-
     }
 
-    fn evaluate_event(&mut self, event: crossterm::event::Event)  {
+    fn evaluate_event(&mut self, event: crossterm::event::Event) {
         let should_process = match &event {
             Event::Key(KeyEvent { kind, .. }) => kind == &KeyEventKind::Press,
             Event::Resize(_, _) => true,
@@ -141,8 +132,7 @@ impl Editor {
                         self.should_quit = true;
                     } else if let EditorCommand::Resize(size) = command {
                         self.resize(size);
-                    }
-                    else {
+                    } else {
                         self.view.handle_command(command);
                     }
                 }
@@ -153,18 +143,14 @@ impl Editor {
                     }
                 }
             }
-        }else {
+        } else {
             // #[cfg(debug_assertions)]
             // {
             //     panic!("Received and discarded unsupported or non-press event.");
             // }
         }
-
-
     }
-
 }
-
 
 impl Drop for Editor {
     fn drop(&mut self) {
