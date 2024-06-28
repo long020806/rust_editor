@@ -47,11 +47,10 @@ impl Buffer {
     }
 
     pub fn delete(&mut self, at: Position) {
-        let len = self.lines.len();
-        if let Some(line) = self.lines.get_mut(at.y as usize) {
+        if let Some(line) = self.lines.get(at.y as usize) {
             // 如果delete 执行在行尾且不失最后一行 则将下一行内容合并到当前行
             if at.x >= line.grapheme_count_u16()
-                &&  len > at.y.saturating_add(1) as usize
+                &&  self.lines.len() > at.y.saturating_add(1) as usize
             {
                 let next_line = self.lines.remove(at.y.saturating_add(1) as usize);
                 // clippy::indexing_slicing: We checked for existence of this line in the surrounding if statment
