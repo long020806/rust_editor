@@ -19,7 +19,8 @@ pub enum EditorCommand {
     Quit,
     Insert(char),
     Backspace,
-    Delete
+    Delete,
+    Enter,
 }
 impl TryFrom<Event> for EditorCommand {
     type Error = String;
@@ -42,6 +43,8 @@ impl TryFrom<Event> for EditorCommand {
                 (KeyCode::End, _) => Ok(Self::Move(Direction::End)),
                 (KeyCode::Backspace,_) => Ok(Self::Backspace),
                 (KeyCode::Delete,_) => Ok(Self::Delete),
+                (KeyCode::Tab,_)=>Ok(Self::Insert('\t')),
+                (KeyCode::Enter,_)=>Ok(Self::Enter),
                 _ => Err(format!("Key Code not supported: {code:?}")),
             },
             Event::Resize(width_u16, height_u16) => {

@@ -211,6 +211,7 @@ impl View {
             EditorCommand::Insert(character) => self.insert_char(character),
             EditorCommand::Backspace => {self.backspace()}
             EditorCommand::Delete => {self.delete()}
+            EditorCommand::Enter => {self.insert_newline()}
         }
     }
 
@@ -243,6 +244,12 @@ impl View {
 
     pub fn delete(&mut self){
         self.view_buffer.delete(self.location);
+        self.needs_redraw = true;
+    }
+
+    pub fn insert_newline(&mut self){
+        self.view_buffer.insert_newline(self.location);
+        self.move_text_location(&Direction::Right);
         self.needs_redraw = true;
     }
 

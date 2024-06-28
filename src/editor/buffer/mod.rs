@@ -63,4 +63,13 @@ impl Buffer {
             }
         }
     }
+
+    pub fn insert_newline(&mut self, at: Position){
+        if at.y == self.height_u16() {
+            self.lines.push(Line::default());
+        } else if let Some(line) = self.lines.get_mut(at.y as usize) {
+            let new = line.split(at.x as usize);
+            self.lines.insert(at.y.saturating_add(1) as usize, new);
+        }
+    }
 }

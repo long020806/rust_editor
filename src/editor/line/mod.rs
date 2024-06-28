@@ -22,7 +22,7 @@ struct TextFragment {
     rendered_width: GraphemeWidth,
     replacement: Option<char>,
 }
-
+#[derive(Default)]
 pub struct Line {
     fragments: Vec<TextFragment>,
 }
@@ -145,6 +145,16 @@ impl Line {
         let mut concat = self.to_string();
         concat.push_str(&other.to_string());
         self.fragments = Self::str_to_fragments(&concat);
+    }
+
+    pub fn split(&mut self,at:usize) -> Self{
+        if at > self.fragments.len() {
+            return Self::default();
+        }
+        let remainder = self.fragments.split_off(at);
+        Self {
+            fragments: remainder,
+        }
     }
 
 }
