@@ -45,6 +45,10 @@ impl MessageBar {
         self.cleared_after_expiry = false;
         self.mark_redraw(true);
     }
+
+    pub fn set_needs_redraw(&mut self,val:bool){
+        self.mark_redraw(val)
+    }
 }
 impl UIComponent for MessageBar {
     fn mark_redraw(&mut self, value: bool) {

@@ -239,6 +239,14 @@ impl View {
         self.mark_redraw(true);
         Ok(())
     }
+    
+    pub const fn is_file_loaded(&self) -> bool {
+        self.view_buffer.is_file_loaded()
+    }
+
+    pub fn save_as(&mut self, file_name: &str) -> Result<(), std::io::Error> {
+        self.view_buffer.save_as(file_name)
+    }
 }
 
 impl UIComponent for View {
@@ -288,4 +296,5 @@ impl UIComponent for View {
         }
         Ok(())
     }
+    
 }
