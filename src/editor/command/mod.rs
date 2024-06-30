@@ -9,7 +9,7 @@ use std::convert::TryFrom;
 
 use super::terminal::Size;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 pub enum Move {
     PageUp,
     PageDown,
@@ -46,7 +46,7 @@ impl TryFrom<KeyEvent> for Move {
         }
     }
 }
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 pub enum Edit {
     Insert(char),
     InsertNewline,
@@ -73,12 +73,13 @@ impl TryFrom<KeyEvent> for Edit {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy,Debug)]
 pub enum System {
     Save,
     Resize(Size),
     Quit,
     Dismiss,
+    Search
 }
 
 impl TryFrom<KeyEvent> for System {
@@ -92,6 +93,7 @@ impl TryFrom<KeyEvent> for System {
             match code {
                 Char('q') => Ok(Self::Quit),
                 Char('s') => Ok(Self::Save),
+                Char('f') => Ok(Self::Search),
                 _ => Err(format!("Unsupported CONTROL+{code:?} combination")),
             }
         } else if modifiers == KeyModifiers::NONE && matches!(code, KeyCode::Esc) {
@@ -104,7 +106,7 @@ impl TryFrom<KeyEvent> for System {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Command {
     Move(Move),
     Edit(Edit),

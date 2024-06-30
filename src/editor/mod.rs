@@ -10,7 +10,7 @@ mod view;
 use command::{
     Command::{self, Edit, Move, System},
     Edit::InsertNewline,
-    System::{Dismiss, Quit, Resize, Save},
+    System::{Dismiss, Quit, Resize, Save,Search},
 };
 
 use commandbar::CommandBar;
@@ -25,6 +25,7 @@ use std::{
     io::Error,
     panic::{set_hook, take_hook},
 };
+use std::fmt::format;
 use terminal::{Position, Terminal};
 
 use self::{messagebar::MessageBar, terminal::Size, uicomponent::UIComponent};
@@ -33,13 +34,28 @@ pub const NAME: &str = env!("CARGO_PKG_NAME");
 // pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 const QUIT_TIMES: u8 = 3;
 
+#[derive(Eq, PartialEq, Default)]
+enum PromptType {
+    Search,
+    Save,
+    #[default]
+    None,
+}
+
+impl PromptType {
+    fn is_none(&self) -> bool {
+          *self == Self::None
+    }
+}
+
 #[derive(Default)]
 pub struct Editor {
     should_quit: bool,
     view: View,
     statusbar: StatusBar,
     message_bar: MessageBar,
-    command_bar: Option<CommandBar>,
+    command_bar: CommandBar,
+    prompt_type: PromptType,
     terminal_size: Size,
     title: String,
     quit_times: u8,
@@ -57,7 +73,7 @@ impl Editor {
         editor.resize(size);
         editor
             .message_bar
-            .update_message("HELP: Ctrl-S = save | Ctrl-Q = quit");
+            .update_message("HELP: Ctrl-F = search | Ctrl-S = save | Ctrl-Q = quit");
         let args: Vec<String> = env::args().collect();
         if let Some(file_name) = args.get(1) {
             if editor.view.load(file_name).is_err() {
@@ -74,67 +90,107 @@ impl Editor {
     fn process_command(&mut self, command: Command) {
         match command {
             System(Quit) => {
-                if self.command_bar.is_none() {
+                if self.prompt_type.is_none() {
                     self.handle_quit();
                 }
             }
             System(Resize(size)) => self.resize(size),
             _ => self.reset_quit_times(), // Reset quit times for all other commands
         }
+        self.message_bar.update_message(format!("{:?}",command).as_str());
+        self.message_bar.set_needs_redraw(true);
         match command {
             System(Quit | Resize(_)) => {} // already handled above
+            System(Search) =>{
+                if self.prompt_type.is_none() {
+                    self.prompt_type = PromptType::Search;
+                    self.handle_search();
+                }
+            }
             System(Save) => {
-                if self.command_bar.is_none() {
+                if self.prompt_type.is_none() {
+                    self.prompt_type = PromptType::Save;
                     self.handle_save();
                 }
             }
             System(Dismiss) => {
-                if self.command_bar.is_some() {
-                    self.dismiss_prompt();
-                    self.message_bar.update_message("Save aborted.");
-                }
+                match self.prompt_type{
+                    PromptType::Save => {
+                        self.dismiss_prompt();
+                        self.message_bar.update_message("Save aborted.");
+                    }
+                    PromptType::Search =>{
+                        self.dismiss_prompt();
+                        self.message_bar.update_message("Search aborted.");
+                    },
+                    PromptType::None =>{
+
+                    }
+                } 
             }
             Edit(edit_command) => {
-                if let Some(command_bar) = &mut self.command_bar {
-                    if matches!(edit_command, InsertNewline) {
-                        let file_name = command_bar.value();
-                        self.dismiss_prompt();
-                        self.save(Some(&file_name));
-                    } else {
-                        command_bar.handle_edit_command(edit_command);
+                match self.prompt_type {
+                    PromptType::Search => {
+                        if matches!(edit_command, InsertNewline) {
+                            let search_value = self.command_bar.value();
+                            self.dismiss_prompt();
+                            self.search(Some(&search_value));
+                            self.prompt_type = PromptType::None;
+                        }else{
+                            self.command_bar.handle_edit_command(edit_command);
+                        }
                     }
-                } else {
-                    self.view.handle_edit_command(edit_command);
-                }
+                    PromptType::Save => {
+                        if matches!(edit_command, InsertNewline) {
+                            let file_name = self.command_bar.value();
+                            self.dismiss_prompt();
+                            self.save(Some(&file_name));
+                            self.prompt_type = PromptType::None;
+                        }else{
+                            self.command_bar.handle_edit_command(edit_command);
+                        }
+                    }
+                    PromptType::None => {self.view.handle_edit_command(edit_command);}
+                } 
             }
 
             Move(move_command) => {
-                if self.command_bar.is_none() {
+                if self.prompt_type.is_none() {
                     self.view.handle_move_command(move_command);
                 }
             }
         }
     }
     fn dismiss_prompt(&mut self) {
-        self.command_bar = None;
         self.message_bar.set_needs_redraw(true);
     }
 
-    fn show_prompt(&mut self) {
+    fn show_prompt(&mut self,prompt:&str) {
         let mut command_bar = CommandBar::default();
-        command_bar.set_prompt("Save as: ");
+        command_bar.set_prompt(prompt);
         command_bar.resize(Size {
             height: 1,
             width: self.terminal_size.width,
         });
         command_bar.set_needs_redraw(true);
-        self.command_bar = Some(command_bar);
+        self.command_bar = command_bar;
     }
     fn handle_save(&mut self) {
         if self.view.is_file_loaded() {
             self.save(None);
         } else {
-            self.show_prompt();
+            self.show_prompt("Save as: ");
+        }
+    }
+
+    fn handle_search(&mut self) {
+        self.show_prompt("Search as: ");
+    }
+
+    fn search(&mut self, search_value: Option<&str>){
+        if let Some(search_value) = search_value {
+            self.message_bar.update_message(format!("Search {} successfully.",search_value).as_str());
+
         }
     }
 
@@ -153,11 +209,15 @@ impl Editor {
             }
             let bottom_bar_row = self.terminal_size.height.saturating_sub(1);
             let _ = Terminal::hide_cursor();
-            if let Some(command_bar) = &mut self.command_bar {
-                command_bar.render(bottom_bar_row as usize);
-            } else {
-                self.message_bar.render(bottom_bar_row as usize);
-            }
+            match self.prompt_type {
+                PromptType::Search | PromptType::Save =>{
+                    self.command_bar.render(bottom_bar_row as usize);
+                }
+                PromptType::None => {
+                    self.message_bar.render(bottom_bar_row as usize);
+
+                }
+            } 
             if self.terminal_size.height > 1 {
                 self.statusbar
                     .render(self.terminal_size.height.saturating_sub(2) as usize);
@@ -165,13 +225,16 @@ impl Editor {
             if self.terminal_size.height > 2 {
                 self.view.render(0);
             }
-            let new_caret_pos = if let Some(command_bar) = &self.command_bar {
-                Position {
-                    x: bottom_bar_row,
-                    y: command_bar.caret_position_col() as u16,
+            let new_caret_pos = match self.prompt_type {
+                PromptType::Search | PromptType::Save =>{
+                    Position {
+                        x: bottom_bar_row,
+                        y: self.command_bar.caret_position_col() as u16,
+                    }
                 }
-            } else {
-                self.view.caret_position()
+                PromptType::None => {
+                    self.view.caret_position()
+                }
             };
             let _ = Terminal::move_cursor_to(new_caret_pos);
             let _ = Terminal::show_cursor();
@@ -213,12 +276,15 @@ impl Editor {
             height: 1,
             width: size.width,
         });
-        if let Some(command_bar) = &mut self.command_bar {
-            command_bar.resize(Size {
-                height: 1,
-                width: size.width,
-            });
-        }
+        match self.prompt_type {
+            PromptType::Search | PromptType::Save =>{
+                self.command_bar.resize(Size {
+                    height: 1,
+                    width: size.width,
+                });
+            }
+            _ => {}
+        } 
     }
 
     pub fn refresh_status(&mut self) {
@@ -256,14 +322,16 @@ impl Editor {
         }
         let _ = Terminal::hide_cursor();
         let _ = Terminal::move_cursor_to(Position { x: 0, y: 0 });
-        if let Some(command_bar) = &mut self.command_bar {
-            command_bar
-            .render(self.terminal_size.height.saturating_sub(1) as usize);
-        }else{
-            self.message_bar
-            .render(self.terminal_size.height.saturating_sub(1) as usize);
-        }
-
+        match self.prompt_type {
+            PromptType::Search | PromptType::Save =>{
+                self.command_bar
+                .render(self.terminal_size.height.saturating_sub(1) as usize);
+            }
+            PromptType::None => {
+                self.message_bar
+                .render(self.terminal_size.height.saturating_sub(1) as usize);
+            }
+        } 
         if self.terminal_size.height > 1 {
             self.statusbar
                 .render(self.terminal_size.height.saturating_sub(2) as usize);
