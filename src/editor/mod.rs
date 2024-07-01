@@ -118,10 +118,12 @@ impl Editor {
                     PromptType::Save => {
                         self.dismiss_prompt();
                         self.message_bar.update_message("Save aborted.");
+                        self.prompt_type = PromptType::None;
                     }
                     PromptType::Search =>{
                         self.dismiss_prompt();
                         self.message_bar.update_message("Search aborted.");
+                        self.prompt_type = PromptType::None;
                     },
                     PromptType::None =>{
 
