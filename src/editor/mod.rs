@@ -186,7 +186,7 @@ impl Editor {
     }
 
     fn handle_search(&mut self) {
-        self.show_prompt("Search as: ");
+        self.show_prompt("Search: ");
     }
 
     fn search(&mut self, search_value: Option<&str>){
